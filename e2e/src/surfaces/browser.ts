@@ -11,6 +11,7 @@ import { promisify } from "node:util";
 import { Effect } from "effect";
 import { chromium, type Page } from "playwright";
 
+import { markFocus, markRecordingStart } from "../timeline";
 import type { Identity, Target } from "../target";
 
 export interface BrowserSession {
@@ -42,7 +43,17 @@ export const makeBrowserSurface = (dir: string, target: Target): BrowserSurface 
         const videoTmp = join(dir, ".video-tmp");
         mkdirSync(videoTmp, { recursive: true });
 
-        const browser = await chromium.launch();
+        // On the desk (E2E_DESK), the browser is a real headed window on the
+        // virtual display — the desk's single screen recording films it next
+        // to the chat terminal, exactly like a developer tabbing over.
+        const browser = await chromium.launch(
+          process.env.E2E_DESK === "1"
+            ? {
+                headless: false,
+                args: ["--window-position=300,40", "--window-size=1100,830"],
+              }
+            : {},
+        );
         const context = await browser.newContext({
           colorScheme: "dark",
           viewport: { width: 1280, height: 800 },
@@ -56,11 +67,16 @@ export const makeBrowserSurface = (dir: string, target: Target): BrowserSurface 
           );
         }
         const page = await context.newPage();
+        // The session video's clock starts with the page; anchor it for the
+        // run's focus timeline (scripts/film.ts cuts on these).
+        markRecordingStart(dir, "browser");
         return { browser, context, page, videoTmp, shots: { count: 0 } };
       }),
       ({ page, context, shots }) =>
         Effect.promise(async () => {
           const step = async (label: string, action: (page: Page) => Promise<void>) => {
+            // Acting on the page IS focusing the browser window.
+            markFocus(dir, "browser");
             await context.tracing.group(label);
             try {
               await action(page);

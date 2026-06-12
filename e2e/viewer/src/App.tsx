@@ -155,8 +155,13 @@ const RunView = ({ target, slug }: { target: string; slug: string }) => {
 
   const has = (name: string) => result.artifacts.includes(name);
   const screenshots = result.artifacts.filter((a) => a.endsWith(".png")).sort();
-  const video = has("session.mp4") ? "session.mp4" : has("session.webm") ? "session.webm" : null;
-  const cast = has("terminal.cast") ? "terminal.cast" : null;
+  // film.mp4 (scripts/film.ts) is the whole session as one video — terminal,
+  // browser hop, terminal, cut like tabbing between full-screen windows.
+  // When present it IS the session; the parts stay on disk for debugging.
+  const film = has("film.mp4") ? "film.mp4" : null;
+  const video =
+    film ?? (has("session.mp4") ? "session.mp4" : has("session.webm") ? "session.webm" : null);
+  const cast = film ? null : has("terminal.cast") ? "terminal.cast" : null;
   const media = video ?? cast;
   const traceUrl = has("trace.zip")
     ? `https://trace.playwright.dev/?trace=${encodeURIComponent(
@@ -193,7 +198,7 @@ const RunView = ({ target, slug }: { target: string; slug: string }) => {
             className={tab === "media" ? "tab active" : "tab"}
             onClick={() => setTab("media")}
           >
-            ▶ {video ? "video" : "terminal"}
+            ▶ {cast && video ? "session" : video ? "video" : "terminal"}
           </button>
           <button
             className={tab === "source" ? "tab active" : "tab"}
@@ -209,18 +214,24 @@ const RunView = ({ target, slug }: { target: string; slug: string }) => {
           <TestSource url={`${base}/test.ts`} />
         </Suspense>
       )}
-      {cast && !video && tab === "media" && (
+      {/* A run with BOTH recordings is one session in time order: the
+          terminal chat is the spine, the browser video is the hop that
+          happens in the middle of it. Show them in that order. */}
+      {cast && tab === "media" && (
         <Suspense fallback={<p className="dim">loading recording…</p>}>
+          {video && <h2 className="section">1 · the chat, in the terminal</h2>}
           <TerminalCast url={`${base}/${cast}`} />
         </Suspense>
       )}
       {video && tab === "media" && (
         <>
-          {/* muted is required for browsers to honor autoplay */}
+          {cast && <h2 className="section">2 · the browser hop, mid-chat</h2>}
+          {/* muted is required for browsers to honor autoplay; don't
+              autoplay when it's the second act of a session */}
           <video
             className="hero-video"
             controls
-            autoPlay
+            autoPlay={!cast}
             muted
             playsInline
             preload="auto"
