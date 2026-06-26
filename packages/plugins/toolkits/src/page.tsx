@@ -1114,15 +1114,110 @@ function ToolkitWorkspace(props: {
   );
 }
 
-function ToolkitsPageSkeleton() {
+function ToolkitTileSkeleton(props: { index: number }) {
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      <div className="flex-1 p-4">
-        <Skeleton className="h-8 w-full" />
-        <div className="grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2 md:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} className="h-36 w-full rounded-md" />
-          ))}
+    <div
+      className="flex min-h-36 min-w-0 flex-col justify-between rounded-md border border-border/60 bg-card/35 p-3"
+      style={toolkitCardStyle}
+      aria-hidden="true"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <Skeleton className="size-9 shrink-0 rounded-md" />
+        <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+          <Skeleton className="h-4" style={{ width: `${52 + ((props.index * 17) % 28)}%` }} />
+          <Skeleton className="h-3" style={{ width: `${34 + ((props.index * 11) % 24)}%` }} />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-24" />
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Skeleton className="h-5 w-14 rounded-full" />
+          <Skeleton className="h-5 w-20 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToolkitSectionSkeleton(props: { title: string; offset: number }) {
+  return (
+    <section className="space-y-3" aria-label={`Loading ${props.title.toLowerCase()} toolkits`}>
+      <div className="border-b border-border/60 pb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          {props.title}
+        </h2>
+      </div>
+
+      <div className="grid content-start grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <ToolkitTileSkeleton key={index} index={props.offset + index} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ToolkitGridSkeleton() {
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="w-full space-y-7 px-4 py-4" style={toolkitGridContainerStyle}>
+        <ToolkitSectionSkeleton title="Workspace" offset={0} />
+        <ToolkitSectionSkeleton title="Personal" offset={3} />
+      </div>
+    </div>
+  );
+}
+
+function ToolkitDetailSkeleton() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-border/60 bg-background/95 px-4 py-3">
+        <Skeleton className="mb-3 h-7 w-20 rounded-md" />
+        <div className="space-y-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+          <Skeleton className="h-6 w-full max-w-md" />
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div
+          className="flex min-h-0 shrink-0 flex-col border-r border-border/60"
+          style={toolkitToolTreeStyle}
+        >
+          <div className="border-b border-border/60 px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+              <Skeleton className="h-8 w-16 rounded-md" />
+            </div>
+          </div>
+          <div className="space-y-1 p-3">
+            {Array.from({ length: 9 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-2 rounded-md px-2 py-1.5">
+                <Skeleton className="size-4 shrink-0 rounded" />
+                <Skeleton className="h-3.5" style={{ width: `${48 + ((index * 13) % 38)}%` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-5 overflow-hidden p-6">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-52" />
+            <Skeleton className="h-4 w-full max-w-lg" />
+            <Skeleton className="h-4 w-full max-w-sm" />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-24 w-full rounded-md" />
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-24 w-full rounded-md" />
+          </div>
         </div>
       </div>
     </div>
@@ -1193,7 +1288,7 @@ function ToolkitDetailView(props: {
     return <div className="p-6 text-sm text-destructive">Failed to load toolkit</div>;
   }
   if (!AsyncResult.isSuccess(policies) || !AsyncResult.isSuccess(connections)) {
-    return <ToolkitsPageSkeleton />;
+    return <ToolkitDetailSkeleton />;
   }
 
   return (
@@ -1234,6 +1329,10 @@ export function ToolkitsPage(props: PluginPageProps) {
   const integrationRows = AsyncResult.isSuccess(integrations)
     ? (integrations.value as readonly Integration[])
     : [];
+  const toolkitsReady = AsyncResult.isSuccess(toolkits);
+  const toolkitsFailed = AsyncResult.isFailure(toolkits);
+  const toolsReady = AsyncResult.isSuccess(tools);
+  const toolsFailed = AsyncResult.isFailure(tools);
   const navigateToIndex = () =>
     navigate({
       to: "/{-$orgSlug}/plugins/$pluginId/$",
@@ -1270,46 +1369,48 @@ export function ToolkitsPage(props: PluginPageProps) {
         </div>
       ) : null}
 
-      {!AsyncResult.isSuccess(toolkits) || !AsyncResult.isSuccess(tools) ? (
-        AsyncResult.isFailure(toolkits) || AsyncResult.isFailure(tools) ? (
+      {!toolkitsReady ? (
+        toolkitsFailed ? (
           <div className="p-6 text-sm text-destructive">Failed to load toolkits</div>
         ) : (
-          <ToolkitsPageSkeleton />
+          <ToolkitGridSkeleton />
         )
+      ) : selectedToolkit ? (
+        toolsFailed ? (
+          <div className="p-6 text-sm text-destructive">Failed to load toolkit tools</div>
+        ) : !toolsReady ? (
+          <ToolkitDetailSkeleton />
+        ) : (
+          <ToolkitDetailView
+            toolkit={selectedToolkit}
+            tools={toolRows}
+            integrations={integrationRows}
+            integrationPlugins={integrationPlugins}
+            orgSlug={params.orgSlug}
+            onBack={() => void navigateToIndex()}
+            onRemoveToolkit={removeToolkitHandler}
+          />
+        )
+      ) : selectedToolkitSlug !== null ? (
+        <div className="flex min-h-0 flex-1 flex-col p-6">
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => void navigateToIndex()}
+            className="mb-4 w-fit -ml-1 text-muted-foreground"
+          >
+            <ArrowLeftIcon className="size-3.5" />
+            Toolkits
+          </Button>
+          <div className="text-sm text-muted-foreground">Toolkit not found</div>
+        </div>
       ) : (
-        <>
-          {selectedToolkit ? (
-            <ToolkitDetailView
-              toolkit={selectedToolkit}
-              tools={toolRows}
-              integrations={integrationRows}
-              integrationPlugins={integrationPlugins}
-              orgSlug={params.orgSlug}
-              onBack={() => void navigateToIndex()}
-              onRemoveToolkit={removeToolkitHandler}
-            />
-          ) : selectedToolkitSlug !== null ? (
-            <div className="flex min-h-0 flex-1 flex-col p-6">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => void navigateToIndex()}
-                className="mb-4 w-fit -ml-1 text-muted-foreground"
-              >
-                <ArrowLeftIcon className="size-3.5" />
-                Toolkits
-              </Button>
-              <div className="text-sm text-muted-foreground">Toolkit not found</div>
-            </div>
-          ) : (
-            <ToolkitGrid
-              pluginId={props.pluginId}
-              toolkits={toolkitRows}
-              onCreate={createToolkitHandler}
-            />
-          )}
-        </>
+        <ToolkitGrid
+          pluginId={props.pluginId}
+          toolkits={toolkitRows}
+          onCreate={createToolkitHandler}
+        />
       )}
     </div>
   );

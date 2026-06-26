@@ -56,6 +56,9 @@ scenario(
           await page.getByRole("heading", { name: "Toolkits" }).waitFor();
           await page.getByRole("heading", { name: "Workspace" }).waitFor();
           await page.getByRole("heading", { name: "Personal" }).waitFor();
+          await page.getByRole("button", { name: "Add workspace toolkit" }).waitFor();
+          await page.getByRole("button", { name: "Add personal toolkit" }).waitFor();
+          expect(await page.locator('main [data-slot="skeleton"]').count()).toBe(0);
           expect(await page.getByLabel("New toolkit").count()).toBe(0);
         });
 
