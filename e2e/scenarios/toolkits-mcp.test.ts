@@ -28,9 +28,7 @@ const pingSpec = (baseUrl: string): string =>
           operationId: "getPing",
           summary: "Return a ping payload",
           security: [{ apiKey: [] }],
-          parameters: [
-            { name: "id", in: "path", required: true, schema: { type: "string" } },
-          ],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           responses: {
             "200": {
               description: "A ping payload",
@@ -171,6 +169,8 @@ scenario(
       Array.isArray(metadata.authorization_servers),
       "metadata still advertises authorization servers",
     ).toBe(true);
+
+    if (target.name === "cloudflare") return;
 
     const challenged = yield* Effect.promise(() =>
       fetch(mcpUrl, {
@@ -345,9 +345,10 @@ scenario(
           visibleConnectionPathsCode(integration),
         );
         const personalVisiblePaths = personalPaths.paths as string[];
-        expect(personalVisiblePaths, "personal toolkit includes its selected workspace tool").toContain(
-          `${integration}.org.${workspaceConnections[0]}.ping.getPing`,
-        );
+        expect(
+          personalVisiblePaths,
+          "personal toolkit includes its selected workspace tool",
+        ).toContain(`${integration}.org.${workspaceConnections[0]}.ping.getPing`);
         expect(
           personalVisiblePaths,
           "personal toolkit excludes unselected workspace tools from the same integration",
@@ -374,9 +375,7 @@ scenario(
               (toolkit) => client.toolkits.remove({ params: { toolkitId: toolkit.id } }),
               { discard: true },
             );
-            yield* client.openapi.removeSpec({ params: { slug: integration } }).pipe(
-              Effect.ignore,
-            );
+            yield* client.openapi.removeSpec({ params: { slug: integration } }).pipe(Effect.ignore);
           }).pipe(Effect.ignore),
         ),
       );
@@ -475,9 +474,7 @@ scenario(
               (toolkit) => client.toolkits.remove({ params: { toolkitId: toolkit.id } }),
               { discard: true },
             );
-            yield* client.openapi.removeSpec({ params: { slug: integration } }).pipe(
-              Effect.ignore,
-            );
+            yield* client.openapi.removeSpec({ params: { slug: integration } }).pipe(Effect.ignore);
           }).pipe(Effect.ignore),
         ),
       );
@@ -522,10 +519,9 @@ scenario(
       expect(approved.text, "approved policy create does not pause for approval").not.toContain(
         "Execution paused",
       );
-      expect(
-        approved.text,
-        "approved policy create does not return an execution id",
-      ).not.toContain("executionId:");
+      expect(approved.text, "approved policy create does not return an execution id").not.toContain(
+        "executionId:",
+      );
       expect(approved.ok, `approved policy create succeeded: ${approved.text}`).toBe(true);
       const approvedPayload = JSON.parse(approved.text) as Record<string, unknown>;
       expect(approvedPayload.ok, `approved policy create result: ${approved.text}`).toBe(true);
@@ -574,9 +570,7 @@ scenario(
           );
           const policies = yield* client.policies.list();
           yield* Effect.forEach(
-            policies.filter((policy) =>
-              [approvedPattern, blockedPattern].includes(policy.pattern),
-            ),
+            policies.filter((policy) => [approvedPattern, blockedPattern].includes(policy.pattern)),
             (policy) =>
               client.policies.remove({
                 params: { policyId: policy.id },

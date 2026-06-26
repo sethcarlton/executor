@@ -11,6 +11,8 @@ import { join } from "node:path";
 import { Effect } from "effect";
 
 import { createRuntime, type Runtime } from "@executor-js/mcporter";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 import { appendTraces } from "../trace-harvest";
 import type { Identity, Target } from "../target";
@@ -298,6 +300,65 @@ export const makeMcpSurface = (target: Target, runDir?: string): McpSurface => (
     const sessionUrl = options?.elicitationMode
       ? `${mcpUrl}?elicitation_mode=${options.elicitationMode}`
       : mcpUrl;
+
+    if (target.name === "cloudflare") {
+      let clientPromise: Promise<Client> | undefined;
+      const client = () => {
+        if (!clientPromise) {
+          clientPromise = (async () => {
+            const directClient = new Client(
+              { name: serverName, version: "1.0.0" },
+              { capabilities: {} },
+            );
+            const transport = new StreamableHTTPClientTransport(new URL(sessionUrl), {
+              requestInit: { headers: identity.headers ?? {} },
+            });
+            await directClient.connect(transport);
+            return directClient;
+          })();
+        }
+        return clientPromise;
+      };
+
+      const listTools = () =>
+        Effect.promise(async () => {
+          const listed = await (await client()).listTools();
+          return listed.tools.map((tool) => tool.name);
+        });
+
+      const call = (name: string, args: Record<string, unknown> = {}) =>
+        Effect.promise(async (): Promise<McpCallResult> => {
+          const raw = await (await client()).callTool({ name, arguments: args });
+          const isError = Boolean((raw as { isError?: boolean })?.isError);
+          return { raw, text: textOf(raw), ok: !isError };
+        });
+
+      return {
+        listTools,
+        describeTools: () =>
+          Effect.promise(async (): Promise<ReadonlyArray<McpToolDef>> => {
+            const listed = await (await client()).listTools();
+            return listed.tools.map((tool) => ({
+              name: tool.name,
+              description: tool.description ?? "",
+            }));
+          }),
+        call,
+        approvePaused: (text, content = {}) =>
+          Effect.suspend(() => {
+            const match = /\bexecutionId:\s*(\S+)/.exec(text);
+            if (!match)
+              return Effect.die(new Error("approvePaused: executionId not found in text"));
+            return call("resume", {
+              executionId: match[1],
+              action: "accept",
+              content: JSON.stringify(content),
+            });
+          }),
+        awaitResume: (executionId) => call("resume", { executionId }),
+      };
+    }
+
     let runtimePromise: Promise<Runtime> | undefined;
     let connected = false;
 

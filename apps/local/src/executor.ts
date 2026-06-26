@@ -49,7 +49,8 @@ const makeTenantId = (cwd: string): string => {
   return `${folder}-${hash}`;
 };
 
-const resolvePluginConfigPath = (scopeDir: string): string => join(scopeDir, "executor.jsonc");
+const resolvePluginConfigPath = (scopeDir: string): string =>
+  join(scopeDir, "executor.jsonc");
 
 // Plugins reach the host through two doors that compose:
 //   - `executor.config.ts`'s static tuple
@@ -57,51 +58,66 @@ const resolvePluginConfigPath = (scopeDir: string): string => join(scopeDir, "ex
 // Static config wins on conflict, matching the Vite plugin.
 type LocalPlugins = readonly AnyPlugin[];
 
-const loadLocalPlugins = Effect.gen(function* () {
-  const cwd = process.env.EXECUTOR_SCOPE_DIR || process.cwd();
-  const staticPlugins = executorConfig.plugins();
-  const dynamicPlugins =
-    (yield* Effect.promise(() => loadPluginsFromJsonc({ path: resolvePluginConfigPath(cwd) }))) ??
-    [];
+export interface LocalExecutorOptions {
+  readonly activeToolkitSlug?: string;
+}
 
-  const staticPackageNames = new Set(
-    staticPlugins.map((plugin) => plugin.packageName).filter((name): name is string => !!name),
-  );
-  const dedupedDynamic = dynamicPlugins.filter((plugin) => {
-    if (plugin.packageName && staticPackageNames.has(plugin.packageName)) {
-      console.warn(
-        `[executor] plugin "${plugin.packageName}" appears in both ` +
-          `executor.config.ts and executor.jsonc#plugins. The static ` +
-          `entry wins; the jsonc entry is ignored.`,
-      );
-      return false;
-    }
-    return true;
+const loadLocalPlugins = (options: LocalExecutorOptions = {}) =>
+  Effect.gen(function* () {
+    const cwd = process.env.EXECUTOR_SCOPE_DIR || process.cwd();
+    const staticPlugins = executorConfig.plugins({
+      activeToolkitSlug: options.activeToolkitSlug,
+    });
+    const dynamicPlugins =
+      (yield* Effect.promise(() =>
+        loadPluginsFromJsonc({ path: resolvePluginConfigPath(cwd) }),
+      )) ?? [];
+
+    const staticPackageNames = new Set(
+      staticPlugins
+        .map((plugin) => plugin.packageName)
+        .filter((name): name is string => !!name),
+    );
+    const dedupedDynamic = dynamicPlugins.filter((plugin) => {
+      if (plugin.packageName && staticPackageNames.has(plugin.packageName)) {
+        console.warn(
+          `[executor] plugin "${plugin.packageName}" appears in both ` +
+            `executor.config.ts and executor.jsonc#plugins. The static ` +
+            `entry wins; the jsonc entry is ignored.`,
+        );
+        return false;
+      }
+      return true;
+    });
+
+    return {
+      cwd,
+      plugins: [...staticPlugins, ...dedupedDynamic] as LocalPlugins,
+    };
   });
-
-  return {
-    cwd,
-    plugins: [...staticPlugins, ...dedupedDynamic] as LocalPlugins,
-  };
-});
 
 interface LocalExecutorBundle {
   readonly executor: Executor<LocalPlugins>;
   readonly plugins: LocalPlugins;
 }
 
-class LocalExecutorTag extends Context.Service<LocalExecutorTag, LocalExecutorBundle>()(
-  "@executor-js/local/Executor",
-) {}
+class LocalExecutorTag extends Context.Service<
+  LocalExecutorTag,
+  LocalExecutorBundle
+>()("@executor-js/local/Executor") {}
 
 export type LocalExecutor = LocalExecutorBundle["executor"];
 
-class LocalExecutorCreateError extends Data.TaggedError("LocalExecutorCreateError")<{
+class LocalExecutorCreateError extends Data.TaggedError(
+  "LocalExecutorCreateError",
+)<{
   readonly message: string;
   readonly cause: unknown;
 }> {}
 
-class LocalExecutorDisposeError extends Data.TaggedError("LocalExecutorDisposeError")<{
+class LocalExecutorDisposeError extends Data.TaggedError(
+  "LocalExecutorDisposeError",
+)<{
   readonly operation: "createHandle" | "disposeExecutor" | "disposeRuntime";
   readonly cause: unknown;
 }> {}
@@ -126,20 +142,23 @@ const handleOrNull = (promise: ReturnType<typeof createExecutorHandle>) =>
   Effect.runPromise(
     Effect.tryPromise({
       try: () => promise,
-      catch: (cause) => new LocalExecutorDisposeError({ operation: "createHandle", cause }),
+      catch: (cause) =>
+        new LocalExecutorDisposeError({ operation: "createHandle", cause }),
     }).pipe(
       Effect.catch(() =>
-        Effect.succeed<Awaited<ReturnType<typeof createExecutorHandle>> | null>(null),
+        Effect.succeed<Awaited<ReturnType<typeof createExecutorHandle>> | null>(
+          null,
+        ),
       ),
     ),
   );
 
-const createLocalExecutorLayer = () => {
+const createLocalExecutorLayer = (options: LocalExecutorOptions = {}) => {
   const storage = resolveStorage();
 
   return Layer.effect(LocalExecutorTag)(
     Effect.gen(function* () {
-      const { cwd, plugins } = yield* loadLocalPlugins;
+      const { cwd, plugins } = yield* loadLocalPlugins(options);
       const tenantId = makeTenantId(cwd);
       const tables = collectTables();
 
@@ -180,7 +199,11 @@ const createLocalExecutorLayer = () => {
       // without touching the data.
       yield* runSqliteDataMigrations(sqlite.client, localDataMigrations).pipe(
         Effect.mapError(
-          (cause) => new LocalExecutorCreateError({ message: CREATE_SQLITE_ERROR_MESSAGE, cause }),
+          (cause) =>
+            new LocalExecutorCreateError({
+              message: CREATE_SQLITE_ERROR_MESSAGE,
+              cause,
+            }),
         ),
       );
 
@@ -189,7 +212,8 @@ const createLocalExecutorLayer = () => {
       // resolution so a custom $PORT flows through. EXECUTOR_WEB_BASE_URL
       // overrides entirely for deployments where the UI is on a different host.
       const webBaseUrl =
-        process.env.EXECUTOR_WEB_BASE_URL ?? `http://localhost:${process.env.PORT ?? "4788"}`;
+        process.env.EXECUTOR_WEB_BASE_URL ??
+        `http://localhost:${process.env.PORT ?? "4788"}`;
 
       const executor = yield* createExecutor({
         tenant: Tenant.make(tenantId),
@@ -223,8 +247,10 @@ const createLocalExecutorLayer = () => {
   );
 };
 
-export const createExecutorHandle = async () => {
-  const layer = createLocalExecutorLayer();
+export const createExecutorHandle = async (
+  options: LocalExecutorOptions = {},
+) => {
+  const layer = createLocalExecutorLayer(options);
   const runtime = ManagedRuntime.make(layer);
   const bundle = await runtime.runPromise(LocalExecutorTag.asEffect());
 
@@ -249,14 +275,17 @@ const loadSharedHandle = () => {
   return sharedHandlePromise;
 };
 
-export const getExecutor = () => loadSharedHandle().then((handle) => handle.executor);
+export const getExecutor = () =>
+  loadSharedHandle().then((handle) => handle.executor);
 export const getExecutorBundle = () => loadSharedHandle();
 
 export const disposeExecutor = async (): Promise<void> => {
   const currentHandlePromise = sharedHandlePromise;
   sharedHandlePromise = null;
 
-  const handle = currentHandlePromise ? await handleOrNull(currentHandlePromise) : null;
+  const handle = currentHandlePromise
+    ? await handleOrNull(currentHandlePromise)
+    : null;
   if (handle) {
     await ignorePromiseFailure("disposeExecutor", () => handle.dispose());
   }

@@ -6,12 +6,19 @@ import { defineConfig, type Plugin } from "vite";
 import appPlugin from "@executor-js/app/vite";
 import { loadOrMintLocalAuthToken } from "./src/auth";
 import { consumeOAuthResult } from "./src/oauth-result-store";
-import { isUnauthenticatedOAuthCallbackPath, makeIsAuthorized } from "./src/serve-shared";
+import {
+  isUnauthenticatedOAuthCallbackPath,
+  makeIsAuthorized,
+} from "./src/serve-shared";
 
 // oxlint-disable-next-line executor/no-json-parse -- boundary: Vite config reads package metadata from package.json
 const rootPackage = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-) as { version: string; homepage?: string; repository?: string | { url?: string } };
+) as {
+  version: string;
+  homepage?: string;
+  repository?: string | { url?: string };
+};
 
 // oxlint-disable-next-line executor/no-json-parse -- boundary: Vite config reads package metadata from package.json
 const cliPackage = JSON.parse(
@@ -19,7 +26,9 @@ const cliPackage = JSON.parse(
 ) as { version?: string };
 
 const repositoryUrl =
-  typeof rootPackage.repository === "string" ? rootPackage.repository : rootPackage.repository?.url;
+  typeof rootPackage.repository === "string"
+    ? rootPackage.repository
+    : rootPackage.repository?.url;
 
 const EXECUTOR_VERSION = cliPackage.version ?? rootPackage.version;
 const EXECUTOR_GITHUB_URL = (
@@ -58,7 +67,9 @@ function executorApiPlugin(): Plugin {
         server.httpServer?.once("listening", () => {
           const address = server.httpServer?.address();
           const port =
-            typeof address === "object" && address ? address.port : server.config.server.port;
+            typeof address === "object" && address
+              ? address.port
+              : server.config.server.port;
           server.config.logger.info(
             `\n  Open with auth:  http://127.0.0.1:${port}/?_token=${devToken}\n`,
           );
@@ -66,14 +77,18 @@ function executorApiPlugin(): Plugin {
       }
 
       server.watcher.on("change", (path) => {
-        if (path.includes("/apps/local/src/") || path.endsWith("/executor.config.ts")) {
+        if (
+          path.includes("/apps/local/src/") ||
+          path.endsWith("/executor.config.ts")
+        ) {
           handlers = null;
         }
       });
       server.middlewares.use(async (req, res, next) => {
         const rawUrl = req.url ?? "/";
-        const isApi = rawUrl.startsWith("/api/") || rawUrl === "/api";
-        const isMcp = rawUrl.startsWith("/mcp");
+        const pathOnly = rawUrl.split("?")[0] ?? "/";
+        const isApi = pathOnly.startsWith("/api/") || pathOnly === "/api";
+        const isMcp = pathOnly === "/mcp" || pathOnly.startsWith("/mcp/");
 
         if (!isApi && !isMcp) return next();
 
@@ -84,9 +99,9 @@ function executorApiPlugin(): Plugin {
         // callback. The SPA carries the token from its `?_token`/localStorage
         // bootstrap, so the UI is unaffected; external MCP clients use the
         // daemon port.
-        const pathOnly = rawUrl.split("?")[0] ?? "/";
         const authExempt =
-          pathOnly === "/api/health" || isUnauthenticatedOAuthCallbackPath(pathOnly);
+          pathOnly === "/api/health" ||
+          isUnauthenticatedOAuthCallbackPath(pathOnly);
         if (!authExempt) {
           const presented = req.headers.authorization;
           const authValue = Array.isArray(presented) ? presented[0] : presented;
@@ -94,7 +109,9 @@ function executorApiPlugin(): Plugin {
             "http://localhost/",
             authValue ? { headers: { authorization: authValue } } : undefined,
           );
-          if (!makeIsAuthorized(devToken ?? loadOrMintLocalAuthToken())(probe)) {
+          if (
+            !makeIsAuthorized(devToken ?? loadOrMintLocalAuthToken())(probe)
+          ) {
             res.statusCode = 401;
             res.setHeader("www-authenticate", 'Bearer realm="executor"');
             res.end("Unauthorized");
@@ -106,13 +123,16 @@ function executorApiPlugin(): Plugin {
         try {
           if (!handlers) {
             const { getServerHandlers } = await import("./src/main");
-            handlers = await getServerHandlers(devToken ?? loadOrMintLocalAuthToken());
+            handlers = await getServerHandlers(
+              devToken ?? loadOrMintLocalAuthToken(),
+            );
           }
 
           const origin = `http://${req.headers.host ?? "localhost"}`;
           const headers = new Headers();
           for (const [key, value] of Object.entries(req.headers)) {
-            if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+            if (value)
+              headers.set(key, Array.isArray(value) ? value.join(", ") : value);
           }
 
           const hasBody = req.method !== "GET" && req.method !== "HEAD";
@@ -128,7 +148,9 @@ function executorApiPlugin(): Plugin {
           if (isMcp) {
             response = await handlers.mcp.handleRequest(webRequest(rawUrl));
           } else if (pathOnly === "/api/health" && req.method === "GET") {
-            response = new Response("ok", { headers: { "content-type": "text/plain" } });
+            response = new Response("ok", {
+              headers: { "content-type": "text/plain" },
+            });
           } else if (pathOnly.startsWith("/api/mcp-sessions/")) {
             const handler =
               req.method === "GET"
@@ -136,14 +158,21 @@ function executorApiPlugin(): Plugin {
                 : handlers.mcp.handleApprovalRequest;
             response = await handler(webRequest(rawUrl));
           } else {
-            const awaitMatch = /^\/api\/oauth\/await\/([^/?#]+)$/.exec(pathOnly);
+            const awaitMatch = /^\/api\/oauth\/await\/([^/?#]+)$/.exec(
+              pathOnly,
+            );
             if (awaitMatch && req.method === "GET") {
-              response = new Response(JSON.stringify(consumeOAuthResult(awaitMatch[1]!)), {
-                headers: { "content-type": "application/json" },
-              });
+              response = new Response(
+                JSON.stringify(consumeOAuthResult(awaitMatch[1]!)),
+                {
+                  headers: { "content-type": "application/json" },
+                },
+              );
             } else {
               // Strip /api prefix for Effect handlers.
-              response = await handlers.api.handler(webRequest(rawUrl.slice("/api".length) || "/"));
+              response = await handlers.api.handler(
+                webRequest(rawUrl.slice("/api".length) || "/"),
+              );
             }
           }
 
@@ -182,7 +211,9 @@ export default defineConfig({
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(EXECUTOR_VERSION),
     "import.meta.env.VITE_GITHUB_URL": JSON.stringify(EXECUTOR_GITHUB_URL),
     "import.meta.env.VITE_EXECUTOR_DEV_CLI_CWD": JSON.stringify(REPO_ROOT),
-    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+    "process.env.NODE_ENV": JSON.stringify(
+      process.env.NODE_ENV ?? "development",
+    ),
   },
   resolve: {
     tsconfigPaths: true,

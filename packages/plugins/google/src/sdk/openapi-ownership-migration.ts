@@ -1,10 +1,13 @@
 import { Effect } from "effect";
-import { DataMigrationError, type SqliteDataMigrationClient } from "@executor-js/sdk/core";
+import {
+  DataMigrationError,
+  type SqliteDataMigrationClient,
+} from "@executor-js/sdk/core";
 
 const MIGRATION_NAME = "2026-06-20-google-openapi-ownership";
 const googleOpenApiCandidate = (alias?: string): string => {
   const column = (name: string) => (alias ? `${alias}.${name}` : name);
-  return `${column("plugin_id")} = 'openapi' AND ${column("config")} IS NOT NULL AND json_type(${column("config")}, '$.googleDiscoveryUrls') = 'array'`;
+  return `${column("plugin_id")} = 'openapi' AND ${column("config")} IS NOT NULL AND json_valid(${column("config")}) AND json_type(${column("config")}, '$.googleDiscoveryUrls') = 'array'`;
 };
 
 const execute = (
@@ -13,7 +16,8 @@ const execute = (
 ) =>
   Effect.tryPromise({
     try: () => client.execute(stmt),
-    catch: (cause) => new DataMigrationError({ migration: MIGRATION_NAME, cause }),
+    catch: (cause) =>
+      new DataMigrationError({ migration: MIGRATION_NAME, cause }),
   });
 
 export const runSqliteGoogleOpenApiOwnershipMigration = (
