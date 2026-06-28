@@ -136,10 +136,12 @@ function BillingPage() {
             <p className="text-sm font-medium text-foreground">Executions</p>
             <p className="text-sm tabular-nums text-muted-foreground">
               {executions.usage.toLocaleString()}
-              <span className="text-muted-foreground">
-                {" / "}
-                {executions.granted.toLocaleString()} this month
-              </span>
+              {!executions.unlimited && (
+                <span className="text-muted-foreground">
+                  {" / "}
+                  {executions.granted.toLocaleString()} this month
+                </span>
+              )}
             </p>
           </div>
           {!executions.unlimited && executions.granted > 0 && (
