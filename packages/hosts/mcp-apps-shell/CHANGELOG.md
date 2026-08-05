@@ -1,5 +1,13 @@
 # @executor-js/mcp-apps-shell
 
+## 1.4.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @executor-js/runtime-quickjs@1.5.40
+  - @executor-js/react@1.4.60
+
 ## 1.4.7
 
 ### Patch Changes

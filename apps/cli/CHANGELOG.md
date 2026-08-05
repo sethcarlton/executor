@@ -1,5 +1,17 @@
 # executor
 
+## 1.5.40
+
+### Patch Changes
+
+- [#1534](https://github.com/UsefulSoftwareCo/executor/pull/1534) [`80e5530`](https://github.com/UsefulSoftwareCo/executor/commit/80e553026278b1ecd7807f1ba99ba13b19d2c336) Thanks [@RhysSullivan](https://github.com/RhysSullivan)! - Report the real product surface and version in the integrations.sh registry user-agent. The daemon previously sent `local` with a version frozen at 1.4.4; it now reports `cli` or `desktop` (matching analytics surfaces) and `@executor-js/local` is versioned with the release train.
+
+- Updated dependencies [[`80e5530`](https://github.com/UsefulSoftwareCo/executor/commit/80e553026278b1ecd7807f1ba99ba13b19d2c336)]:
+  - @executor-js/local@1.5.40
+  - @executor-js/sdk@1.5.40
+  - @executor-js/runtime-quickjs@1.5.40
+  - @executor-js/api@1.4.60
+
 ## 1.5.39
 
 ### Patch Changes
